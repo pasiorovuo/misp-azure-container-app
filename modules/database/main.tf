@@ -1,0 +1,110 @@
+
+locals {
+  admin_username          = "mispadmin"
+  config                  = var.config
+  default_skus            = { dev = "B_Standard_B1ms", tst = "B_Standard_B1ms", stg = "B_Standard_B2s", prd = "B_Standard_D2ads_v5" }
+  environment             = var.environment
+  keyvault                = var.keyvault
+  log_analytics_workspace = var.log_analytics_workspace
+  # TODO: Make these configurable
+  mysql_tweaks = {
+    # innodb_buffer_pool_size = "1073741824" # Closest supported value 2147483648
+    # innodb_change_buffering = "none"
+    # innodb_io_capacity      = "1000"
+    # innodb_io_capacity_max  = "2000"
+    # innodb_log_file_size    = "536870912" # Closest supported value in Azure
+    # innodb_read_io_threads  = "16"
+    # innodb_stats_persistent = "ON"
+    # innodb_write_io_threads = "4"
+    long_query_time          = "10"
+    require_secure_transport = "OFF"
+    slow_query_log           = "ON"
+  }
+  prefix                = var.name_prefix
+  private_dns_zone_name = "privatelink.mysql.database.azure.com"
+  resource_group        = var.resource_group
+  subnet                = var.subnet
+  vnet                  = var.vnet
+}
+
+resource "random_password" "admin_password" {
+  length  = 24
+  lower   = true
+  numeric = true
+  special = false
+  upper   = true
+}
+
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault_secret" "password" {
+  key_vault_id = local.keyvault.id
+  name         = "${local.prefix}-database-admin-password"
+  value        = random_password.admin_password.result
+}
+
+resource "azurerm_private_dns_zone" "sql" {
+  name                = local.private_dns_zone_name
+  resource_group_name = local.resource_group.name
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
+  name                  = "${local.prefix}-sql-priv-zone-link"
+  resource_group_name   = local.resource_group.name
+  private_dns_zone_name = azurerm_private_dns_zone.sql.name
+  virtual_network_id    = local.vnet.id
+}
+
+resource "azurerm_mysql_flexible_server" "database" {
+  administrator_login    = local.admin_username
+  administrator_password = azurerm_key_vault_secret.password.value
+  backup_retention_days  = 30
+  delegated_subnet_id    = local.subnet.id
+  depends_on             = [azurerm_private_dns_zone_virtual_network_link.sql]
+  location               = local.resource_group.location
+  name                   = "${local.prefix}-mysql"
+  private_dns_zone_id    = azurerm_private_dns_zone.sql.id
+  resource_group_name    = local.resource_group.name
+  sku_name               = lookup(local.config, "sku_name") != null ? local.config.sku_name : lookup(local.default_skus, local.environment)
+
+  storage {
+    auto_grow_enabled = true
+    # Define IOPS?
+    size_gb = local.config.size_gb
+  }
+}
+
+resource "azurerm_mysql_flexible_server_configuration" "database" {
+  for_each = local.mysql_tweaks
+
+  name                = each.key
+  resource_group_name = local.resource_group.name
+  server_name         = azurerm_mysql_flexible_server.database.name
+  value               = each.value
+}
+
+resource "azurerm_monitor_diagnostic_setting" "database" {
+  log_analytics_workspace_id = local.log_analytics_workspace.id
+  name                       = "${local.prefix}-databse-diagnostic-settings"
+  target_resource_id         = azurerm_mysql_flexible_server.database.id
+
+  enabled_log {
+    category = "MySqlAuditLogs"
+  }
+  enabled_log {
+    category = "MySqlSlowLogs"
+  }
+  enabled_metric {
+    category = "AllMetrics"
+  }
+}
+
+resource "azurerm_mysql_flexible_database" "misp" {
+  name                = local.config.database_name
+  resource_group_name = local.resource_group.name
+  server_name         = azurerm_mysql_flexible_server.database.name
+  # charset             = "utf8mb4"
+  # collation           = "utf8mb4_unicode_ci"
+  charset   = "utf8"
+  collation = "utf8_unicode_ci"
+}
