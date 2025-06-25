@@ -20,12 +20,13 @@ locals {
     require_secure_transport = "OFF"
     slow_query_log           = "ON"
   }
-  prefix                = var.name_prefix
-  private_dns_zone_name = "privatelink.mysql.database.azure.com"
-  resource_group        = var.resource_group
-  subnet                = var.subnet
-  vnet                  = var.vnet
+  naming         = var.naming
+  resource_group = var.resource_group
+  subnet         = var.subnet
+  vnet           = var.vnet
 }
+
+data "azurerm_client_config" "current" {}
 
 resource "random_password" "admin_password" {
   length  = 24
@@ -35,21 +36,39 @@ resource "random_password" "admin_password" {
   upper   = true
 }
 
-data "azurerm_client_config" "current" {}
+resource "azurecaf_name" "database" {
+  clean_input   = local.naming.clean_input
+  name          = local.naming.name
+  prefixes      = local.naming.prefixes
+  random_length = local.naming.random_length
+  resource_type = "azurerm_mysql_server"
+  suffixes      = local.naming.suffixes
+  use_slug      = local.naming.use_slug
+}
+
+resource "azurecaf_name" "admin_password" {
+  clean_input   = local.naming.clean_input
+  name          = "${local.naming.name}-db-admin-pwd"
+  prefixes      = local.naming.prefixes
+  random_length = local.naming.random_length
+  resource_type = "azurerm_key_vault_secret"
+  suffixes      = local.naming.suffixes
+  use_slug      = local.naming.use_slug
+}
 
 resource "azurerm_key_vault_secret" "password" {
   key_vault_id = local.keyvault.id
-  name         = "${local.prefix}-database-admin-password"
+  name         = azurecaf_name.admin_password.result
   value        = random_password.admin_password.result
 }
 
 resource "azurerm_private_dns_zone" "sql" {
-  name                = local.private_dns_zone_name
+  name                = "privatelink.mysql.database.azure.com"
   resource_group_name = local.resource_group.name
 }
 
 resource "azurerm_private_dns_zone_virtual_network_link" "sql" {
-  name                  = "${local.prefix}-sql-priv-zone-link"
+  name                  = replace(azurecaf_name.database.result, "mysql", "dnsvnetlnk")
   resource_group_name   = local.resource_group.name
   private_dns_zone_name = azurerm_private_dns_zone.sql.name
   virtual_network_id    = local.vnet.id
@@ -62,7 +81,7 @@ resource "azurerm_mysql_flexible_server" "database" {
   delegated_subnet_id    = local.subnet.id
   depends_on             = [azurerm_private_dns_zone_virtual_network_link.sql]
   location               = local.resource_group.location
-  name                   = "${local.prefix}-mysql"
+  name                   = azurecaf_name.database.result
   private_dns_zone_id    = azurerm_private_dns_zone.sql.id
   resource_group_name    = local.resource_group.name
   sku_name               = lookup(local.config, "sku_name") != null ? local.config.sku_name : lookup(local.default_skus, local.environment)
@@ -85,7 +104,7 @@ resource "azurerm_mysql_flexible_server_configuration" "database" {
 
 resource "azurerm_monitor_diagnostic_setting" "database" {
   log_analytics_workspace_id = local.log_analytics_workspace.id
-  name                       = "${local.prefix}-databse-diagnostic-settings"
+  name                       = replace(azurecaf_name.database.result, "mysql", "diagsett")
   target_resource_id         = azurerm_mysql_flexible_server.database.id
 
   enabled_log {
