@@ -1,34 +1,84 @@
 
 locals {
-  cache_config            = var.cache_config
-  database_config         = var.database_config
-  envvars                 = var.envvars
+  cache_config    = var.cache_config
+  database_config = var.database_config
+  envvars = merge({
+    # Defaults that can be overridden
+    CORE_RUNNING_TAG = "latest"
+    }, var.envvars, {
+    # Values always forced
+    DISABLE_IPV6 = "true" # Azure Container Apps does not support IPv6
+  })
   fqdn                    = var.fqdn
   keyvault                = var.keyvault
   log_analytics_workspace = var.log_analytics_workspace
-  modules_envvars         = merge({ MODULES_FLAVOR = "full", MODULES_TAG = "latest" }, var.modules_envvars)
-  prefix                  = var.name_prefix
-  resource_group          = var.resource_group
-  secret_ids              = var.secret_ids
-  subnet                  = var.subnet
+  modules_envvars = merge({
+    # Defaults that can be overridden
+    MODULES_FLAVOR = "full",
+    MODULES_TAG    = "latest"
+    }, var.modules_envvars, {
+    # Values that are always enforced
+  })
+  naming          = var.naming
+  resource_group  = var.resource_group
+  secret_ids      = var.secret_ids
+  storage_account = var.storage_account
+  subnet          = var.subnet
 }
 
-# resource "azurerm_user_assigned_identity" "app_identity" {
-#   name                = "${local.prefix}-app-identity"
-#   resource_group_name = local.resource_group.name
-#   location            = local.resource_group.location
-# }
+resource "azurecaf_name" "container_app_environment" {
+  clean_input    = local.naming.clean_input
+  name           = local.naming.name
+  prefixes       = local.naming.prefixes
+  random_length  = local.naming.random_length
+  resource_type  = "azurerm_app_service_environment"
+  resource_types = ["azurerm_resource_group", "azurerm_automation_certificate"]
+  suffixes       = local.naming.suffixes
+  use_slug       = local.naming.use_slug
+}
 
-resource "azurerm_user_assigned_identity" "secrets_identity" {
-  name                = "${local.prefix}-secrets-identity"
+resource "azurecaf_name" "container_app_environment_rg" {
+  clean_input   = local.naming.clean_input
+  name          = "${local.naming.name}-caeinfra"
+  prefixes      = local.naming.prefixes
+  random_length = local.naming.random_length
+  resource_type = "azurerm_resource_group"
+  suffixes      = local.naming.suffixes
+  use_slug      = local.naming.use_slug
+}
+
+resource "azurerm_user_assigned_identity" "app" {
+  name = join(azurecaf_name.container_app_environment.separator, concat(
+    local.naming.prefixes,
+    ["uai", local.naming.name, "app"],
+    local.naming.suffixes,
+    [split("-", azurecaf_name.container_app_environment.result)[length(split("-", azurecaf_name.container_app_environment.result)) - 1]]
+  ))
   resource_group_name = local.resource_group.name
   location            = local.resource_group.location
+}
+
+resource "azurerm_user_assigned_identity" "secrets" {
+  name = join(azurecaf_name.container_app_environment.separator, concat(
+    local.naming.prefixes,
+    ["uai", local.naming.name, "secrets"],
+    local.naming.suffixes,
+    [split("-", azurecaf_name.container_app_environment.result)[length(split("-", azurecaf_name.container_app_environment.result)) - 1]]
+  ))
+  resource_group_name = local.resource_group.name
+  location            = local.resource_group.location
+}
+
+resource "azurerm_role_assignment" "storage_writer" {
+  scope                = local.storage_account.id
+  role_definition_name = "Storage File Data SMB Share Contributor"
+  principal_id         = azurerm_user_assigned_identity.app.principal_id
 }
 
 resource "azurerm_role_assignment" "keyvault_reader" {
   scope                = local.keyvault.id
   role_definition_name = "Key Vault Secrets User"
-  principal_id         = azurerm_user_assigned_identity.secrets_identity.principal_id
+  principal_id         = azurerm_user_assigned_identity.secrets.principal_id
 }
 
 resource "time_sleep" "keyvault_rights" {
@@ -51,13 +101,13 @@ resource "random_string" "identifier" {
 
 resource "azurerm_container_app_environment" "app" {
   depends_on                         = [time_sleep.keyvault_rights]
-  infrastructure_resource_group_name = "${trimsuffix(local.resource_group.name, "-rg")}-container-app-env-rg"
+  infrastructure_resource_group_name = replace(azurecaf_name.container_app_environment_rg.result, "ase-", "cae-")
   infrastructure_subnet_id           = local.subnet.id
   internal_load_balancer_enabled     = false
   location                           = local.resource_group.location
   log_analytics_workspace_id         = local.log_analytics_workspace.id
   logs_destination                   = "log-analytics"
-  name                               = "${local.prefix}-app-env-${random_string.identifier.result}"
+  name                               = replace(azurecaf_name.container_app_environment.result, "ase-", "cae-")
   resource_group_name                = local.resource_group.name
 
   workload_profile {
@@ -66,6 +116,15 @@ resource "azurerm_container_app_environment" "app" {
     name                  = "Consumption"
     workload_profile_type = "Consumption"
   }
+}
+
+resource "azurerm_container_app_environment_storage" "app" {
+  access_key                   = local.storage_account.access_key
+  access_mode                  = "ReadWrite"
+  account_name                 = local.storage_account.name
+  container_app_environment_id = azurerm_container_app_environment.app.id
+  name                         = "storage"
+  share_name                   = local.storage_account.share.name
 }
 
 # resource "azurerm_container_app" "cache" {
@@ -94,19 +153,22 @@ resource "azurerm_container_app" "misp_core" {
   workload_profile_name        = "Consumption"
 
   identity {
-    identity_ids = [azurerm_user_assigned_identity.secrets_identity.id]
-    type         = "UserAssigned"
+    identity_ids = [
+      azurerm_user_assigned_identity.app.id,
+      azurerm_user_assigned_identity.secrets.id,
+    ]
+    type = "UserAssigned"
   }
 
   secret {
     name                = "cache-password"
-    identity            = azurerm_user_assigned_identity.secrets_identity.id
+    identity            = azurerm_user_assigned_identity.secrets.id
     key_vault_secret_id = local.secret_ids.cache_password
   }
 
   secret {
     name                = "db-password"
-    identity            = azurerm_user_assigned_identity.secrets_identity.id
+    identity            = azurerm_user_assigned_identity.secrets.id
     key_vault_secret_id = local.secret_ids.db_password
   }
 
@@ -165,24 +227,57 @@ resource "azurerm_container_app" "misp_core" {
         value = "true"
       }
 
-      # liveness_probe {
-      #   failure_count_threshold = 3
-      #   interval_seconds        = 2
-      #   path                    = "/users/heartbeat"
-      #   port                    = 80
-      #   timeout                 = 1
-      #   transport               = "HTTP"
-      # }
+      liveness_probe {
+        failure_count_threshold = 3
+        interval_seconds        = 2
+        path                    = "/users/heartbeat"
+        port                    = 80
+        timeout                 = 1
+        transport               = "HTTP"
+      }
 
       startup_probe {
         failure_count_threshold = 8
         initial_delay           = 60
         interval_seconds        = 30
         path                    = "/users/heartbeat"
-        port                    = 443
+        port                    = 80
         timeout                 = 5
         transport               = "HTTP"
       }
+
+      volume_mounts {
+        name     = azurerm_container_app_environment_storage.app.name
+        path     = "/var/www/MISP/app/Config/"
+        sub_path = "configs/"
+      }
+      volume_mounts {
+        name     = azurerm_container_app_environment_storage.app.name
+        path     = "/var/www/MISP/app/tmp/logs/"
+        sub_path = "logs/"
+      }
+      volume_mounts {
+        name     = azurerm_container_app_environment_storage.app.name
+        path     = "/var/www/MISP/app/files/"
+        sub_path = "files/"
+      }
+      volume_mounts {
+        name     = azurerm_container_app_environment_storage.app.name
+        path     = "/etc/nginx/certs/"
+        sub_path = "ssl/"
+      }
+      volume_mounts {
+        name     = azurerm_container_app_environment_storage.app.name
+        path     = "/var/www/MISP/.gnupg/"
+        sub_path = "gnupg/"
+      }
+    }
+
+    volume {
+      name          = azurerm_container_app_environment_storage.app.name
+      storage_name  = azurerm_container_app_environment_storage.app.name
+      storage_type  = "AzureFile"
+      mount_options = "dir_mode=0755,file_mode=0644"
     }
 
     max_replicas = 1
@@ -192,7 +287,7 @@ resource "azurerm_container_app" "misp_core" {
   ingress {
     allow_insecure_connections = false
     external_enabled           = true
-    target_port                = 443
+    target_port                = 80
     transport                  = "auto"
 
     ip_security_restriction {
@@ -279,65 +374,57 @@ resource "azurerm_dns_a_record" "misp" {
   zone_name           = data.azurerm_dns_zone.zone.name
 }
 
-# resource "azurerm_dns_cname_record" "misp" {
-#   name                = "@"
-#   record              = "${azurerm_container_app.misp.name}.${azurerm_container_app_environment.app.default_domain}"
-#   resource_group_name = data.azurerm_dns_zone.zone.resource_group_name
-#   ttl                 = 300
-#   zone_name           = data.azurerm_dns_zone.zone.name
-# }
+resource "azurerm_dns_txt_record" "misp" {
+  name                = "asuid"
+  resource_group_name = data.azurerm_dns_zone.zone.resource_group_name
+  ttl                 = 300
+  zone_name           = data.azurerm_dns_zone.zone.name
 
-# resource "azurerm_dns_txt_record" "misp" {
-#   name                = "asuid"
-#   resource_group_name = data.azurerm_dns_zone.zone.resource_group_name
-#   ttl                 = 300
-#   zone_name           = data.azurerm_dns_zone.zone.name
+  record {
+    value = azurerm_container_app.misp_core.custom_domain_verification_id
+  }
+}
 
-#   record {
-#     value = azurerm_container_app.misp_core.custom_domain_verification_id
-#   }
-# }
+resource "azurerm_container_app_custom_domain" "misp" {
+  container_app_id = azurerm_container_app.misp_core.id
+  name             = local.fqdn
 
-# resource "azurerm_container_app_custom_domain" "misp" {
-#   container_app_id = azurerm_container_app.misp_core.id
-#   name             = local.fqdn
+  lifecycle {
+    ignore_changes = [certificate_binding_type, container_app_environment_certificate_id]
+  }
+}
 
-#   lifecycle {
-#     ignore_changes = [certificate_binding_type, container_app_environment_certificate_id]
-#   }
-# }
+resource "azapi_resource" "managed_certificate" {
+  depends_on = [azurerm_container_app_custom_domain.misp]
+  location   = local.resource_group.location
+  name       = replace(azurecaf_name.container_app_environment.result, "aacert-", "cert-")
+  parent_id  = azurerm_container_app_environment.app.id
+  type       = "Microsoft.App/managedEnvironments/managedCertificates@2023-05-01"
 
-# resource "azapi_resource" "managed_certificate" {
-#   depends_on = [azurerm_container_app_custom_domain.misp]
-#   location   = local.resource_group.location
-#   name       = "${local.prefix}-managed-certificate"
-#   parent_id  = azurerm_container_app_environment.app.id
-#   type       = "Microsoft.App/managedEnvironments/managedCertificates@2023-05-01"
+  body = {
+    properties = {
+      domainControlValidation = "HTTP"
+      subjectName             = local.fqdn
+    }
+  }
+}
 
-#   body = {
-#     properties = {
-#       domainControlValidation = "HTTP"
-#       subjectName             = local.fqdn
-#     }
-#   }
-# }
+resource "azapi_update_resource" "bind_managed_certificate" {
+  depends_on  = [azapi_resource.managed_certificate]
+  resource_id = azurerm_container_app.misp_core.id
+  type        = "Microsoft.App/containerApps@2023-05-01"
 
-# resource "azapi_update_resource" "bind_managed_certificate" {
-#   depends_on  = [azapi_resource.managed_certificate]
-#   resource_id = azurerm_container_app.misp_core.id
-#   type        = "Microsoft.App/containerApps@2023-05-01"
-
-#   body = {
-#     properties = {
-#       configuration = {
-#         ingress = {
-#           customDomains = [{
-#             bindingType   = "SniEnabled"
-#             certificateId = azapi_resource.managed_certificate.id
-#             name          = local.fqdn
-#           }]
-#         }
-#       }
-#     }
-#   }
-# }
+  body = {
+    properties = {
+      configuration = {
+        ingress = {
+          customDomains = [{
+            bindingType   = "SniEnabled"
+            certificateId = azapi_resource.managed_certificate.id
+            name          = local.fqdn
+          }]
+        }
+      }
+    }
+  }
+}

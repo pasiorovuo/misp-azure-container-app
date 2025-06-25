@@ -34,9 +34,15 @@ variable "log_analytics_workspace" {
   })
 }
 
-variable "name_prefix" {
-  description = "Name prefix for resources"
-  type        = string
+variable "naming" {
+  type = object({
+    clean_input   = bool
+    name          = string
+    prefixes      = list(string)
+    random_length = number
+    suffixes      = list(string)
+    use_slug      = bool
+  })
 }
 
 variable "modules_envvars" {
@@ -54,6 +60,18 @@ variable "secret_ids" {
   type = object({
     db_password    = string
     cache_password = string
+  })
+}
+
+variable "storage_account" {
+  type = object({
+    id         = string
+    name       = string
+    access_key = string
+    share = object({
+      id   = string
+      name = string
+    })
   })
 }
 
