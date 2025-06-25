@@ -5,9 +5,15 @@ variable "keyvault_secrets_officer_identities" {
   type        = list(string)
 }
 
-variable "name_prefix" {
-  description = "Name prefix for resources"
-  type        = string
+variable "naming" {
+  type = object({
+    clean_input   = bool
+    name          = string
+    prefixes      = list(string)
+    random_length = number
+    suffixes      = list(string)
+    use_slug      = bool
+  })
 }
 
 variable "resource_group" {

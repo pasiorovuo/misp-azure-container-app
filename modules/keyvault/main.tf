@@ -1,24 +1,27 @@
 
 locals {
   keyvault_secrets_officer_identities = var.keyvault_secrets_officer_identities
-  prefix                              = var.name_prefix
+  naming                              = var.naming
   resource_group                      = var.resource_group
 }
 
 data "azurerm_client_config" "current" {}
 
-resource "random_string" "identifier" {
-  length  = 8
-  lower   = true
-  numeric = true
-  special = false
-  upper   = false
+resource "azurecaf_name" "key_vault" {
+  clean_input    = local.naming.clean_input
+  name           = local.naming.name
+  prefixes       = local.naming.prefixes
+  random_length  = local.naming.random_length
+  resource_type  = "azurerm_key_vault"
+  resource_types = ["azurerm_key_vault_secret"]
+  suffixes       = local.naming.suffixes
+  use_slug       = local.naming.use_slug
 }
 
 resource "azurerm_key_vault" "keyvault" {
   enable_rbac_authorization     = true
   location                      = local.resource_group.location
-  name                          = "${local.prefix}-keyvault-${random_string.identifier.result}"
+  name                          = azurecaf_name.key_vault.result
   public_network_access_enabled = true
   purge_protection_enabled      = true
   resource_group_name           = local.resource_group.name
@@ -48,6 +51,6 @@ resource "azurerm_role_assignment" "administrator" {
 resource "azurerm_key_vault_secret" "null_secret" {
   depends_on   = [time_sleep.sleep_60_seconds]
   key_vault_id = azurerm_key_vault.keyvault.id
-  name         = "${local.prefix}-null-secret"
+  name         = azurecaf_name.key_vault.results["azurerm_key_vault_secret"]
   value        = "Purpose of this secret is to introduce a delay after creating the key vault, so the permissions would have time to be propagated, and creation of secrets would succeed without errors."
 }
