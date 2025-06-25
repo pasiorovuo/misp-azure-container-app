@@ -1,8 +1,8 @@
 
 output "access_keys" {
   value = {
-    primary   = azurerm_key_vault_secret.primary.id
-    secondary = azurerm_key_vault_secret.secondary.id
+    primary = azurerm_key_vault_secret.primary.id
+    # secondary = azurerm_key_vault_secret.secondary.id
   }
 }
 
