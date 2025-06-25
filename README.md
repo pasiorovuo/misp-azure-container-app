@@ -2,6 +2,7 @@
 # TODO
 
 - Harden the key vault
+- Storage account file share size should be configurable
 
 # Login
 

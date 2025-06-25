@@ -63,6 +63,14 @@ variable "name_prefix" {
   type    = string
 }
 
+variable "naming" {
+  type = object({
+    prefix = optional(string)
+    name   = string
+    suffix = optional(string)
+  })
+}
+
 variable "resource_group_name" {
   default  = null
   nullable = true
