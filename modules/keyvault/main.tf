@@ -1,8 +1,10 @@
 
 locals {
+  ip_allowlist                        = var.ip_allowlist
   keyvault_secrets_officer_identities = var.keyvault_secrets_officer_identities
   naming                              = var.naming
   resource_group                      = var.resource_group
+  subnet_ids                          = var.subnet_ids
 }
 
 data "azurerm_client_config" "current" {}
@@ -28,6 +30,13 @@ resource "azurerm_key_vault" "keyvault" {
   sku_name                      = "standard"
   soft_delete_retention_days    = 7
   tenant_id                     = data.azurerm_client_config.current.tenant_id
+
+  network_acls {
+    bypass                     = "AzureServices"
+    default_action             = "Deny"
+    ip_rules                   = local.ip_allowlist
+    virtual_network_subnet_ids = local.subnet_ids
+  }
 }
 
 resource "time_sleep" "sleep_60_seconds" {

@@ -5,6 +5,7 @@ locals {
   core               = var.misp.core
   database           = var.database
   fqdn               = var.fqdn
+  ip_allowlist       = var.ip_allowlist
   location           = var.location
   log_renention_days = var.log_renention_days
   modules            = var.misp.modules
@@ -38,8 +39,10 @@ module "network" {
 module "keyvault" {
   source = "./modules/keyvault"
 
+  ip_allowlist   = local.ip_allowlist.management
   naming         = local.naming
   resource_group = module.resource_group.result
+  subnet_ids     = [for k, v in module.network.subnets : v.id]
 }
 
 module "logs" {
@@ -77,6 +80,7 @@ module "database" {
 module "storage" {
   source = "./modules/storage"
 
+  ip_allowlist   = local.ip_allowlist.management
   naming         = local.naming
   resource_group = module.resource_group.result
   subnet         = module.network.subnets.app
@@ -94,6 +98,7 @@ module "app" {
     MYSQL_USER     = module.database.credentials.username
   }
   fqdn                    = local.fqdn
+  ip_allowlist            = local.ip_allowlist.access
   keyvault                = module.keyvault.result
   log_analytics_workspace = module.logs.workspace
   misp = {

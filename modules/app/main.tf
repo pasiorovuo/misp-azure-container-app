@@ -19,6 +19,7 @@ locals {
     }
   )
   fqdn                    = var.fqdn
+  ip_allowlist            = var.ip_allowlist
   keyvault                = var.keyvault
   log_analytics_workspace = var.log_analytics_workspace
   modules_cpu             = var.misp.modules != null ? var.misp.modules.cpu : 0.5
@@ -316,10 +317,14 @@ resource "azurerm_container_app" "misp_core" {
     target_port                = 80
     transport                  = "auto"
 
-    ip_security_restriction {
-      action           = "Allow"
-      ip_address_range = "157.245.22.138/32"
-      name             = "Allow from VPN"
+    dynamic "ip_security_restriction" {
+      for_each = local.ip_allowlist
+
+      content {
+        action           = "Allow"
+        ip_address_range = ip_security_restriction.value
+        name             = "Allow from ${ip_security_restriction.value}"
+      }
     }
 
     traffic_weight {

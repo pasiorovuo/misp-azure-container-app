@@ -45,6 +45,18 @@ variable "database" {
   })
 }
 
+variable "ip_allowlist" {
+  default = {
+    access     = [] # No access
+    management = [] # No access
+  }
+  description = "IP restrictions for restricting access to the MISP instance. `access` permits access to the load balancer used by MISP and consequently to the user interface of MISP. `management` permits access to the user interface as well as different Azure services' (Key Vault, Storage Account etc.) dataplane, enabling management of the resources. Management IP address must include the IP address deploying the infrastructure."
+  type = object({
+    access     = set(string)
+    management = set(string)
+  })
+}
+
 variable "misp" {
   default = {
     core = {

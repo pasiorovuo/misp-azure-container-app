@@ -1,15 +1,7 @@
 
-# variable "keyvault" {
-#   type = object({
-#     id = string
-#   })
-# }
-
-# variable "log_analytics_workspace" {
-#   type = object({
-#     id = string
-#   })
-# }
+variable "ip_allowlist" {
+  type = set(string)
+}
 
 variable "naming" {
   type = object({

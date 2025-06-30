@@ -24,6 +24,10 @@ variable "fqdn" {
   type = string
 }
 
+variable "ip_allowlist" {
+  type = set(string)
+}
+
 variable "keyvault" {
   type = object({
     id = string

@@ -42,16 +42,16 @@ resource "azurecaf_name" "subnet_database" {
   use_slug       = local.naming.use_slug
 }
 
-resource "azurecaf_name" "subnet_cache" {
-  clean_input    = local.naming.clean_input
-  name           = "${local.naming.name}-cache"
-  prefixes       = local.naming.prefixes
-  random_length  = local.naming.random_length
-  resource_type  = "azurerm_subnet"
-  resource_types = ["azurerm_network_security_group", "azurerm_network_security_group_rule"]
-  suffixes       = local.naming.suffixes
-  use_slug       = local.naming.use_slug
-}
+# resource "azurecaf_name" "subnet_cache" {
+#   clean_input    = local.naming.clean_input
+#   name           = "${local.naming.name}-cache"
+#   prefixes       = local.naming.prefixes
+#   random_length  = local.naming.random_length
+#   resource_type  = "azurerm_subnet"
+#   resource_types = ["azurerm_network_security_group", "azurerm_network_security_group_rule"]
+#   suffixes       = local.naming.suffixes
+#   use_slug       = local.naming.use_slug
+# }
 
 resource "azurecaf_name" "subnet_storage_account" {
   clean_input    = local.naming.clean_input
@@ -75,7 +75,7 @@ resource "azurerm_subnet" "app" {
   address_prefixes     = [cidrsubnet(local.cidr, 7, 0)]
   name                 = azurecaf_name.subnet_app.result
   resource_group_name  = local.resource_group.name
-  service_endpoints    = ["Microsoft.Storage"]
+  service_endpoints    = ["Microsoft.KeyVault", "Microsoft.Storage"]
   virtual_network_name = azurerm_virtual_network.vnet.name
 
   delegation {
@@ -97,6 +97,7 @@ resource "azurerm_subnet" "database" {
   default_outbound_access_enabled = false
   name                            = azurecaf_name.subnet_database.result
   resource_group_name             = local.resource_group.name
+  service_endpoints               = ["Microsoft.KeyVault"]
   virtual_network_name            = azurerm_virtual_network.vnet.name
 
   delegation {
@@ -113,22 +114,22 @@ resource "azurerm_subnet" "database" {
   }
 }
 
-resource "azurerm_subnet" "cache" {
-  address_prefixes                = [cidrsubnet(local.cidr, 8, 60)]
-  default_outbound_access_enabled = false
-  name                            = azurecaf_name.subnet_cache.result
-  resource_group_name             = local.resource_group.name
-  virtual_network_name            = azurerm_virtual_network.vnet.name
-}
+# resource "azurerm_subnet" "cache" {
+#   address_prefixes                = [cidrsubnet(local.cidr, 8, 60)]
+#   default_outbound_access_enabled = false
+#   name                            = azurecaf_name.subnet_cache.result
+#   resource_group_name             = local.resource_group.name
+#   service_endpoints               = ["Microsoft.KeyVault"]
+#   virtual_network_name            = azurerm_virtual_network.vnet.name
+# }
 
 resource "azurerm_subnet" "storage_account" {
   address_prefixes                = [cidrsubnet(local.cidr, 8, 70)]
   default_outbound_access_enabled = false
   name                            = azurecaf_name.subnet_storage_account.result
   resource_group_name             = local.resource_group.name
+  service_endpoints               = ["Microsoft.KeyVault", "Microsoft.Storage"]
   virtual_network_name            = azurerm_virtual_network.vnet.name
-
-  service_endpoints = ["Microsoft.Storage"]
 }
 
 resource "azurerm_network_security_group" "app" {
@@ -153,16 +154,16 @@ resource "azurerm_subnet_network_security_group_association" "database" {
   subnet_id                 = azurerm_subnet.database.id
 }
 
-resource "azurerm_network_security_group" "cache" {
-  name                = azurecaf_name.subnet_cache.results["azurerm_network_security_group"]
-  location            = local.resource_group.location
-  resource_group_name = local.resource_group.name
-}
+# resource "azurerm_network_security_group" "cache" {
+#   name                = azurecaf_name.subnet_cache.results["azurerm_network_security_group"]
+#   location            = local.resource_group.location
+#   resource_group_name = local.resource_group.name
+# }
 
-resource "azurerm_subnet_network_security_group_association" "cache" {
-  network_security_group_id = azurerm_network_security_group.cache.id
-  subnet_id                 = azurerm_subnet.cache.id
-}
+# resource "azurerm_subnet_network_security_group_association" "cache" {
+#   network_security_group_id = azurerm_network_security_group.cache.id
+#   subnet_id                 = azurerm_subnet.cache.id
+# }
 
 resource "azurerm_network_security_group" "storage_account" {
   name                = azurecaf_name.subnet_storage_account.results["azurerm_network_security_group"]

@@ -1,5 +1,6 @@
 
 locals {
+  ip_allowlist   = var.ip_allowlist
   naming         = var.naming
   resource_group = var.resource_group
   subnet         = var.subnet
@@ -55,12 +56,8 @@ resource "azurerm_storage_account" "storage" {
   network_rules {
     bypass                     = ["Logging", "Metrics", "AzureServices"]
     default_action             = "Deny"
-    ip_rules                   = [] # [trimspace(data.http.public_ip.response_body)]
+    ip_rules                   = [for prefix in local.ip_allowlist : trimsuffix(trimsuffix(prefix, "/32"), "/31")] # trimsuffix due to Terraform stupidity
     virtual_network_subnet_ids = [local.subnet.id]
-  }
-
-  lifecycle {
-    ignore_changes = [network_rules[0].ip_rules]
   }
 }
 

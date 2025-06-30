@@ -1,4 +1,8 @@
 
+variable "ip_allowlist" {
+  type = list(string)
+}
+
 variable "keyvault_secrets_officer_identities" {
   default     = []
   description = "List of identities that will be granted the Key Vault Secrets Officer role on the key vault"
@@ -21,4 +25,8 @@ variable "resource_group" {
     name     = string
     location = string
   })
+}
+
+variable "subnet_ids" {
+  type = set(string)
 }
