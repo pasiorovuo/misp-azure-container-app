@@ -28,6 +28,13 @@ variable "resource_group" {
   })
 }
 
+variable "size" {
+  type = object({
+    capacity = number
+    family   = string
+  })
+}
+
 variable "subnet" {
   type = object({
     id = string

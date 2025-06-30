@@ -1,12 +1,13 @@
 
 locals {
+  cache              = var.cache
   cidr               = var.vnet_cidr
-  environment        = var.environment
+  core               = var.misp.core
+  database           = var.database
   fqdn               = var.fqdn
   location           = var.location
   log_renention_days = var.log_renention_days
-  misp_env           = var.misp_env
-  misp_modules_env   = var.misp_modules_env
+  modules            = var.misp.modules
   naming = {
     clean_input   = true
     name          = var.naming.name
@@ -15,8 +16,6 @@ locals {
     suffixes      = var.naming.suffix != null ? [var.naming.suffix] : []
     use_slug      = true
   }
-  mysql_config        = var.mysql_config
-  name_prefix         = var.name_prefix
   resource_group_name = var.resource_group_name
 }
 
@@ -51,22 +50,22 @@ module "logs" {
   retention_days = local.log_renention_days
 }
 
-module "cache" {
-  source = "./modules/cache"
+# We deploy redis in a container for the time being
+# module "cache" {
+#   source = "./modules/cache"
 
-  keyvault                = module.keyvault.result
-  log_analytics_workspace = module.logs.workspace
-  naming                  = local.naming
-  resource_group          = module.resource_group.result
-  subnet                  = module.network.subnets.cache
-  vnet                    = module.network.vnet
-}
+#   keyvault                = module.keyvault.result
+#   log_analytics_workspace = module.logs.workspace
+#   naming                  = local.naming
+#   resource_group          = module.resource_group.result
+#   subnet                  = module.network.subnets.cache
+#   vnet                    = module.network.vnet
+# }
 
 module "database" {
   source = "./modules/database"
 
-  config                  = local.mysql_config
-  environment             = local.environment
+  config                  = local.database
   keyvault                = module.keyvault.result
   log_analytics_workspace = module.logs.workspace
   naming                  = local.naming
@@ -87,15 +86,23 @@ module "storage" {
 module "app" {
   source = "./modules/app"
 
-  envvars                 = local.misp_env
+  cache = local.cache
+  database = {
+    MYSQL_DATABASE = module.database.dbname
+    MYSQL_HOST     = module.database.hostname
+    MYSQL_PORT     = "${module.database.port}"
+    MYSQL_USER     = module.database.credentials.username
+  }
   fqdn                    = local.fqdn
   keyvault                = module.keyvault.result
   log_analytics_workspace = module.logs.workspace
-  modules_envvars         = local.misp_modules_env
-  naming                  = local.naming
-  resource_group          = module.resource_group.result
-  subnet                  = module.network.subnets.app
-
+  misp = {
+    core    = local.core
+    modules = local.modules
+  }
+  naming         = local.naming
+  resource_group = module.resource_group.result
+  subnet         = module.network.subnets.app
   storage_account = {
     id         = module.storage.storage_account.id,
     name       = module.storage.storage_account.name,
@@ -103,20 +110,7 @@ module "app" {
     share      = module.storage.share
   }
 
-  cache_config = {
-    REDIS_HOST = module.cache.host.name
-    REDIS_PORT = module.cache.host.port
-  }
-
-  database_config = {
-    MYSQL_DATABASE = local.mysql_config.database_name
-    MYSQL_HOST     = module.database.hostname
-    MYSQL_PORT     = "${module.database.port}"
-    MYSQL_USER     = module.database.credentials.username
-  }
-
   secret_ids = {
-    cache_password = module.cache.access_keys.primary
-    db_password    = module.database.credentials.password
+    db_password = module.database.credentials.password
   }
 }

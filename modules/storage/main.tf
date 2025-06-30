@@ -58,6 +58,10 @@ resource "azurerm_storage_account" "storage" {
     ip_rules                   = [] # [trimspace(data.http.public_ip.response_body)]
     virtual_network_subnet_ids = [local.subnet.id]
   }
+
+  lifecycle {
+    ignore_changes = [network_rules[0].ip_rules]
+  }
 }
 
 # resource "azurerm_private_endpoint" "private_endpoint" {

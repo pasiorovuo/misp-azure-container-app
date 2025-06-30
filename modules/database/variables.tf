@@ -7,10 +7,6 @@ variable "config" {
   })
 }
 
-variable "environment" {
-  type = string
-}
-
 variable "keyvault" {
   type = object({
     id = string

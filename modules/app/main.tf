@@ -1,24 +1,39 @@
 
 locals {
-  cache_config    = var.cache_config
-  database_config = var.database_config
-  envvars = merge({
-    # Defaults that can be overridden
-    CORE_RUNNING_TAG = "latest"
-    }, var.envvars, {
-    # Values always forced
-    DISABLE_IPV6 = "true" # Azure Container Apps does not support IPv6
-  })
+  cache    = var.cache
+  database = var.database
+  core_cpu = var.misp.core != null ? var.misp.core.cpu : 0.5
+  core_mem = var.misp.core != null ? var.misp.core.memory : 1
+  core_env = merge(
+    {
+      # Defaults that can be overridden
+      CORE_RUNNING_TAG = "latest"
+    },
+    # Configured values
+    var.misp.core != null ? var.misp.core.environment : {},
+    {
+      # Values always forced
+      DISABLE_IPV6         = "true" # Azure Container Apps does not support IPv6
+      DISABLE_SSL_REDIRECT = "true" # TLS is terminated at the load balancer
+      ECS_LOG_ENABLED      = "true"
+    }
+  )
   fqdn                    = var.fqdn
   keyvault                = var.keyvault
   log_analytics_workspace = var.log_analytics_workspace
-  modules_envvars = merge({
-    # Defaults that can be overridden
-    MODULES_FLAVOR = "full",
-    MODULES_TAG    = "latest"
-    }, var.modules_envvars, {
-    # Values that are always enforced
-  })
+  modules_cpu             = var.misp.modules != null ? var.misp.modules.cpu : 0.5
+  modules_mem             = var.misp.modules != null ? var.misp.modules.memory : 1
+  modules_env = merge(
+    {
+      # Defaults that can be overridden
+      MODULES_FLAVOR = "full",
+      MODULES_TAG    = "latest"
+    },
+    var.misp.modules != null ? var.misp.modules.environment : {},
+    {
+      # Values that are always enforced
+    }
+  )
   naming          = var.naming
   resource_group  = var.resource_group
   secret_ids      = var.secret_ids
@@ -87,18 +102,6 @@ resource "time_sleep" "keyvault_rights" {
   depends_on = [azurerm_role_assignment.keyvault_reader]
 }
 
-resource "random_string" "identifier" {
-  length  = 8
-  lower   = true
-  numeric = true
-  special = false
-  upper   = false
-
-  keepers = {
-    key = "1"
-  }
-}
-
 resource "azurerm_container_app_environment" "app" {
   depends_on                         = [time_sleep.keyvault_rights]
   infrastructure_resource_group_name = replace(azurecaf_name.container_app_environment_rg.result, "ase-", "cae-")
@@ -127,23 +130,60 @@ resource "azurerm_container_app_environment_storage" "app" {
   share_name                   = local.storage_account.share.name
 }
 
-# resource "azurerm_container_app" "cache" {
-#   container_app_environment_id = azurerm_container_app_environment.app.id
-#   name                         = "${local.prefix}-cache"
-#   resource_group_name          = local.resource_group.name
-#   revision_mode                = "Single"
+resource "random_password" "cache" {
+  length  = 16
+  lower   = true
+  numeric = true
+  special = false
+  upper   = true
+}
 
-#   template {
-#     container {
-#       name   = "php"
-#       image  = "blabla"
-#       cpu    = 0.5
-#       memory = "1Gi"
-#     }
-#     max_replicas = 1
-#     min_replicas = 1
-#   }
-# }
+resource "azurerm_container_app" "cache" {
+  name                         = "redis"
+  resource_group_name          = local.resource_group.name
+  revision_mode                = "Single"
+  workload_profile_name        = "Consumption"
+  container_app_environment_id = azurerm_container_app_environment.app.id
+
+  template {
+    container {
+      cpu     = local.cache.cpu
+      memory  = "${local.cache.memory}Gi"
+      name    = "redis"
+      image   = "valkey/valkey:7.2"
+      command = ["valkey-server", "--requirepass", random_password.cache.result]
+
+      liveness_probe {
+        failure_count_threshold = 5
+        initial_delay           = 5
+        interval_seconds        = 5
+        port                    = "6379"
+        transport               = "TCP"
+      }
+
+      readiness_probe {
+        failure_count_threshold = 5
+        initial_delay           = 5
+        interval_seconds        = 5
+        port                    = "6379"
+        transport               = "TCP"
+      }
+    }
+    max_replicas = 1
+    min_replicas = 1
+  }
+
+  ingress {
+    external_enabled = false
+    target_port      = 6379
+    transport        = "tcp"
+
+    traffic_weight {
+      latest_revision = true
+      percentage      = 100
+    }
+  }
+}
 
 resource "azurerm_container_app" "misp_core" {
   container_app_environment_id = azurerm_container_app_environment.app.id
@@ -154,16 +194,10 @@ resource "azurerm_container_app" "misp_core" {
 
   identity {
     identity_ids = [
-      azurerm_user_assigned_identity.app.id,
+      # azurerm_user_assigned_identity.app.id,
       azurerm_user_assigned_identity.secrets.id,
     ]
     type = "UserAssigned"
-  }
-
-  secret {
-    name                = "cache-password"
-    identity            = azurerm_user_assigned_identity.secrets.id
-    key_vault_secret_id = local.secret_ids.cache_password
   }
 
   secret {
@@ -174,32 +208,38 @@ resource "azurerm_container_app" "misp_core" {
 
   template {
     container {
-      cpu    = 1
-      image  = "ghcr.io/misp/misp-docker/misp-core:${lookup(local.envvars, "CORE_RUNNING_TAG", "latest")}"
-      memory = "2Gi"
+      cpu    = local.core_cpu
+      image  = "ghcr.io/misp/misp-docker/misp-core:${lookup(local.core_env, "CORE_RUNNING_TAG", "latest")}"
+      memory = "${local.core_mem}Gi"
       name   = "misp-core"
 
       # Pull environment variables from the deployment
       dynamic "env" {
-        for_each = local.envvars
+        for_each = local.core_env
 
         content {
           name  = env.key
           value = env.value
         }
       }
+
       # MySQL configuration
       dynamic "env" {
-        for_each = local.database_config
+        for_each = local.database
 
         content {
           name  = env.key
           value = env.value
         }
       }
+
       # Redis configuration
       dynamic "env" {
-        for_each = local.cache_config
+        for_each = {
+          REDIS_HOST     = "redis"
+          REDIS_PASSWORD = random_password.cache.result
+          REDIS_PORT     = "6379"
+        }
 
         content {
           name  = env.key
@@ -209,22 +249,8 @@ resource "azurerm_container_app" "misp_core" {
 
       # Passwords
       env {
-        name        = "REDIS_PASSWORD"
-        secret_name = "cache-password"
-      }
-      env {
         name        = "MYSQL_PASSWORD"
         secret_name = "db-password"
-      }
-
-      # Other
-      env { # TLS is terminated at the load balancer
-        name  = "DISABLE_SSL_REDIRECT"
-        value = "true"
-      }
-      env {
-        name  = "ECS_LOG_ENABLED"
-        value = "true"
       }
 
       liveness_probe {
@@ -277,7 +303,7 @@ resource "azurerm_container_app" "misp_core" {
       name          = azurerm_container_app_environment_storage.app.name
       storage_name  = azurerm_container_app_environment_storage.app.name
       storage_type  = "AzureFile"
-      mount_options = "dir_mode=0755,file_mode=0644"
+      mount_options = "dir_mode=0777,file_mode=0777,uid=33,gid=33,mfsymlinks,cache=strict,nosharesock,nobrl"
     }
 
     max_replicas = 1
@@ -312,13 +338,13 @@ resource "azurerm_container_app" "misp_modules" {
 
   template {
     container {
-      cpu    = 0.5
-      image  = "ghcr.io/misp/misp-docker/misp-modules:${lookup(local.modules_envvars, "MODULES_TAG", "latest")}"
-      memory = "1Gi"
+      cpu    = local.modules_cpu
+      image  = "ghcr.io/misp/misp-docker/misp-modules:${lookup(local.modules_env, "MODULES_TAG", "latest")}"
+      memory = "${local.modules_mem}Gi"
       name   = "misp-modules"
 
       dynamic "env" {
-        for_each = local.modules_envvars
+        for_each = local.modules_env
 
         content {
           name  = env.key
@@ -410,7 +436,7 @@ resource "azapi_resource" "managed_certificate" {
 }
 
 resource "azapi_update_resource" "bind_managed_certificate" {
-  depends_on  = [azapi_resource.managed_certificate]
+  depends_on  = [azapi_resource.managed_certificate, azurerm_container_app_custom_domain.misp]
   resource_id = azurerm_container_app.misp_core.id
   type        = "Microsoft.App/containerApps@2023-05-01"
 

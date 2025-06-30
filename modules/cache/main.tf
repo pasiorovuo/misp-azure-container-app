@@ -3,6 +3,7 @@ locals {
   log_analytics_workspace = var.log_analytics_workspace
   naming                  = var.naming
   resource_group          = var.resource_group
+  size                    = var.size
   subnet                  = var.subnet
   vnet                    = var.vnet
 }
@@ -32,8 +33,8 @@ resource "azurecaf_name" "key_vault_secret" {
 }
 
 resource "azurerm_redis_cache" "cache" {
-  capacity                      = 0
-  family                        = "C"
+  capacity                      = local.size.capacity
+  family                        = local.size.family
   location                      = local.resource_group.location
   name                          = azurecaf_name.key_vault.result
   non_ssl_port_enabled          = true

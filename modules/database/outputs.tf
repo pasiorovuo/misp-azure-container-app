@@ -1,4 +1,8 @@
 
+output "dbname" {
+  value = local.config.database_name
+}
+
 output "hostname" {
   value = azurerm_mysql_flexible_server.database.fqdn
 }

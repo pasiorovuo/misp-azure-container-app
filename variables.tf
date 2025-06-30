@@ -1,12 +1,13 @@
 
-variable "environment" {
-  default = "dev"
-  type    = string
-
-  validation {
-    condition     = contains(["dev", "tst", "stg", "prd"], var.environment)
-    error_message = "Must be one of dev, tst, stg, prd."
+variable "cache" {
+  default = {
+    cpu    = 0.5
+    memory = 1
   }
+  type = object({
+    cpu    = number
+    memory = number
+  })
 }
 
 variable "fqdn" {
@@ -29,41 +30,57 @@ variable "log_renention_days" {
   type        = number
 }
 
-variable "misp_env" {
-  description = "Environment variables passed to MISP"
-  type        = map(string)
-}
-
-variable "misp_modules_env" {
-  default = {
-    MODULES_FLAVOR = "full",
-    MODULES_TAG    = "latest"
-  }
-  description = "Environment variables passed to MISP modules. Defaults to `full` modules with `latest` tag."
-  type        = map(string)
-}
-
-variable "mysql_config" {
+variable "database" {
   default = {
     database_name = "misp"
-    # Default SKU is selected based on environment according to the map in modules/database/main.tf
-    size_gb = 20
-    version = "8.0"
+    sku_name      = "B_Standard_B1ms"
+    size_gb       = 20
+    version       = "8.0"
   }
   type = object({
-    database_name = optional(string)
-    sku_name      = optional(string)
+    database_name = string
+    sku_name      = string
     size_gb       = number
     version       = string
   })
 }
 
-variable "name_prefix" {
-  default = "misp"
-  type    = string
+variable "misp" {
+  default = {
+    core = {
+      cpu    = 1
+      memory = 2
+      environment = {
+        CORE_RUNNING_TAG = "latest"
+      }
+    }
+    modules = {
+      cpu    = 0.5
+      memory = 1
+      environment = {
+        MODULES_FLAVOR = "full",
+        MODULES_TAG    = "latest"
+      }
+    }
+  }
+  type = object({
+    core = optional(object({
+      cpu         = number
+      memory      = number
+      environment = map(string)
+    }))
+    modules = optional(object({
+      cpu         = number
+      memory      = number
+      environment = map(string)
+    }))
+  })
 }
 
 variable "naming" {
+  default = {
+    name = "misp"
+  }
   type = object({
     prefix = optional(string)
     name   = string

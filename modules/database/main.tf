@@ -2,8 +2,6 @@
 locals {
   admin_username          = "mispadmin"
   config                  = var.config
-  default_skus            = { dev = "B_Standard_B1ms", tst = "B_Standard_B1ms", stg = "B_Standard_B2s", prd = "B_Standard_D2ads_v5" }
-  environment             = var.environment
   keyvault                = var.keyvault
   log_analytics_workspace = var.log_analytics_workspace
   # TODO: Make these configurable
@@ -84,7 +82,7 @@ resource "azurerm_mysql_flexible_server" "database" {
   name                   = azurecaf_name.database.result
   private_dns_zone_id    = azurerm_private_dns_zone.sql.id
   resource_group_name    = local.resource_group.name
-  sku_name               = lookup(local.config, "sku_name") != null ? local.config.sku_name : lookup(local.default_skus, local.environment)
+  sku_name               = local.config.sku_name
 
   storage {
     auto_grow_enabled = true
