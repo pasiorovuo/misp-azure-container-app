@@ -35,7 +35,7 @@ variable "database" {
     database_name = "misp"
     sku_name      = "B_Standard_B1ms"
     size_gb       = 20
-    version       = "8.0"
+    version       = "8.0.21"
   }
   type = object({
     database_name = string

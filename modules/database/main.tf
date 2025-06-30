@@ -83,6 +83,7 @@ resource "azurerm_mysql_flexible_server" "database" {
   private_dns_zone_id    = azurerm_private_dns_zone.sql.id
   resource_group_name    = local.resource_group.name
   sku_name               = local.config.sku_name
+  version                = local.config.version
 
   storage {
     auto_grow_enabled = true
@@ -120,8 +121,6 @@ resource "azurerm_mysql_flexible_database" "misp" {
   name                = local.config.database_name
   resource_group_name = local.resource_group.name
   server_name         = azurerm_mysql_flexible_server.database.name
-  # charset             = "utf8mb4"
-  # collation           = "utf8mb4_unicode_ci"
-  charset   = "utf8"
-  collation = "utf8_unicode_ci"
+  charset             = "utf8mb4"
+  collation           = "utf8mb4_unicode_ci"
 }
