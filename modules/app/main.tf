@@ -381,10 +381,9 @@ resource "azurerm_container_app" "misp_modules" {
   }
 
   ingress {
-    allow_insecure_connections = true
-    external_enabled           = false
-    target_port                = 6666
-    transport                  = "auto"
+    external_enabled = false
+    target_port      = 6666
+    transport        = "tcp"
 
     traffic_weight {
       latest_revision = true
