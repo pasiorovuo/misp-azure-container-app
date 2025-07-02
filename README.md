@@ -1,9 +1,9 @@
 
 # TODO
 
-- Harden the key vault
 - Storage account file share size should be configurable
 - Application logs need to be configured to be shipped somewhere
+- Documentation
 
 # Login
 
