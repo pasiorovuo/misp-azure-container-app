@@ -11,6 +11,7 @@
   - How to deploy it
   - How to destroy the environment
     - Manual removal of custom domain
+  - Scaling / performance
 
 # Login
 
