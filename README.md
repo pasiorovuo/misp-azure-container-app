@@ -1,9 +1,16 @@
 
 # TODO
 
-- Storage account file share size should be configurable
-- Application logs need to be configured to be shipped somewhere
-- Documentation
+- Application logs need to be configured to be shipped to the Log Analytics Workspace
+- Finish documentation
+  - How to configure Entra ID for authentication
+  - How to prepare the Azure account
+    - DNS Zone
+    - Key vault administrator permissions
+  - How to configure the solution
+  - How to deploy it
+  - How to destroy the environment
+    - Manual removal of custom domain
 
 # Login
 

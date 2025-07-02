@@ -1,4 +1,10 @@
 
+variable "config" {
+  type = object({
+    quota = number
+  })
+}
+
 variable "ip_allowlist" {
   type = set(string)
 }

@@ -106,6 +106,15 @@ variable "resource_group_name" {
   type     = string
 }
 
+variable "storage" {
+  default = {
+    quota = 10
+  }
+  type = object({
+    quota = number # Size of file storage
+  })
+}
+
 variable "subscription_id" {
   nullable = false
   type     = string

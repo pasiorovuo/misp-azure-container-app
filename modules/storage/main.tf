@@ -1,5 +1,6 @@
 
 locals {
+  config         = var.config
   ip_allowlist   = var.ip_allowlist
   naming         = var.naming
   resource_group = var.resource_group
@@ -95,7 +96,7 @@ resource "azurerm_storage_account" "storage" {
 resource "azurerm_storage_share" "share" {
   enabled_protocol   = "SMB"
   name               = azurecaf_name.storage_share.result
-  quota              = 10
+  quota              = local.config.quota
   storage_account_id = azurerm_storage_account.storage.id
 }
 

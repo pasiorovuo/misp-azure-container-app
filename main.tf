@@ -18,6 +18,7 @@ locals {
     use_slug      = true
   }
   resource_group_name = var.resource_group_name
+  storage             = var.storage
 }
 
 module "resource_group" {
@@ -80,6 +81,7 @@ module "database" {
 module "storage" {
   source = "./modules/storage"
 
+  config         = local.storage
   ip_allowlist   = local.ip_allowlist.management
   naming         = local.naming
   resource_group = module.resource_group.result
