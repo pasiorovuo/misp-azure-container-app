@@ -70,6 +70,7 @@ module "database" {
   source = "./modules/database"
 
   config                  = local.database
+  depends_on              = [module.keyvault]
   keyvault                = module.keyvault.result
   log_analytics_workspace = module.logs.workspace
   naming                  = local.naming
@@ -83,6 +84,7 @@ module "storage" {
 
   config         = local.storage
   ip_allowlist   = local.ip_allowlist.management
+  log_analytics_workspace = module.logs.workspace
   naming         = local.naming
   resource_group = module.resource_group.result
   subnet         = module.network.subnets.app
@@ -99,6 +101,7 @@ module "app" {
     MYSQL_PORT     = "${module.database.port}"
     MYSQL_USER     = module.database.credentials.username
   }
+  depends_on              = [module.database, module.keyvault]
   fqdn                    = local.fqdn
   ip_allowlist            = local.ip_allowlist.access
   keyvault                = module.keyvault.result

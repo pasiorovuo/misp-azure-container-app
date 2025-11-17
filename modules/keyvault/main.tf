@@ -21,11 +21,11 @@ resource "azurecaf_name" "key_vault" {
 }
 
 resource "azurerm_key_vault" "keyvault" {
-  enable_rbac_authorization     = true
   location                      = local.resource_group.location
   name                          = azurecaf_name.key_vault.result
   public_network_access_enabled = true
   purge_protection_enabled      = true
+  rbac_authorization_enabled    = true
   resource_group_name           = local.resource_group.name
   sku_name                      = "standard"
   soft_delete_retention_days    = 7

@@ -1,11 +1,12 @@
 
 locals {
-  config         = var.config
-  ip_allowlist   = var.ip_allowlist
-  naming         = var.naming
-  resource_group = var.resource_group
-  subnet         = var.subnet
-  vnet           = var.vnet
+  config                  = var.config
+  ip_allowlist            = var.ip_allowlist
+  log_analytics_workspace = var.log_analytics_workspace
+  naming                  = var.naming
+  resource_group          = var.resource_group
+  subnet                  = var.subnet
+  vnet                    = var.vnet
 }
 
 resource "azurecaf_name" "storage_account" {
@@ -123,4 +124,14 @@ resource "azurerm_storage_share" "share" {
 # resource "azurerm_storage_share_directory" "gnupg" {
 #   name             = "gnupg"
 #   storage_share_id = azurerm_storage_share.share.url
+# }
+
+# resource "azurerm_monitor_diagnostic_setting" "storage_diagnostics_settings" {
+#   name                       = replace(azurecaf_name.storage_account.result, "st", "diagsett")
+#   target_resource_id         = azurecaf_name.storage_account.id
+#   log_analytics_workspace_id = local.log_analytics_workspace.id
+
+#   enabled_metric {
+#     category = "FileServices"
+#   }
 # }

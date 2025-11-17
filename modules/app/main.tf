@@ -188,6 +188,7 @@ resource "azurerm_container_app" "cache" {
 
 resource "azurerm_container_app" "misp_core" {
   container_app_environment_id = azurerm_container_app_environment.app.id
+  depends_on                   = [time_sleep.keyvault_rights]
   name                         = "misp-core"
   resource_group_name          = local.resource_group.name
   revision_mode                = "Single"
@@ -456,5 +457,19 @@ resource "azapi_update_resource" "bind_managed_certificate" {
         }
       }
     }
+  }
+}
+
+resource "null_resource" "delete_certificate_binding" {
+  depends_on  = [azapi_resource.managed_certificate, azurerm_container_app_custom_domain.misp]
+  triggers = {
+    container_app_id = azurerm_container_app.misp_core.id
+    custom_domain_id = azurerm_container_app_custom_domain.misp.id
+  }
+
+  provisioner "local-exec" {
+    command    = "az rest --method patch --url https://management.azure.com${self.triggers.container_app_id}?api-version=2023-05-01 --body '${jsonencode({properties={configuration={ingress={customDomains=[]}}}})}'"
+    # on_failure = continue
+    when       = destroy
   }
 }

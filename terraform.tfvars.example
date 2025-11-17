@@ -1,0 +1,33 @@
+fqdn = "misp.example.com"
+ip_allowlist = {
+  access     = ["1.2.3.4/32"]
+  management = ["1.2.3.4/32"]
+}
+misp = {
+  core = {
+    cpu    = 2 # Adjust as needed based on expected load
+    memory = 4 # Adjust as needed based on expected load
+    environment = {
+      ADMIN_EMAIL = "admin@admin.test" # The email address for the initial MISP admin account. MISP sets the password to `admin` so make sure to change it after first login.
+      ADMIN_ORG   = "Solita Oy" # The default organization for the MISP instance.
+      BASE_URL    = "https://misp.example.com"
+
+      # OIDC configuration against Entra ID
+      OIDC_AUTH_METHOD         = "client_secret_post"
+      OIDC_CHECK_USER_VALIDITY = "300"
+      OIDC_CLIENT_ID           = "<OIDC client ID from Entra ID>"
+      OIDC_CLIENT_SECRET       = "<OIDC client secret from Entra ID>"
+      OIDC_DEFAULT_ORG         = "<default organization for OIDC users, usually same as ADMIN_ORG>"
+      OIDC_ENABLE              = "true" # Enable OIDC authentication
+      OIDC_ISSUER              = "<Issuer URL from OIDC provider metadata 'issuer'>"
+      OIDC_LOGOUT_URL          = "<Logout URL from OIDC provider metadata 'end_session_endpoint'>"
+      OIDC_MIXEDAUTH           = "true" # Allow both OIDC and local authentication
+      OIDC_OFFLINE_ACCESS      = "true" # Request offline access (refresh tokens) to enable MISP to check user validity
+      OIDC_PROVIDER_URL        = "<OIDC provider metadata URL from Entra ID app registration -> Overview -> Endpoints, e.g. https://login.microsoftonline.com/{tenant_id}/v2.0/.well-known/openid-configuration>"
+      OIDC_ROLES_MAPPING       = "<OIDC roles mapping JSON e.g. {\"<group_uuid>\": \"1\"} for admins>"
+      OIDC_ROLES_PROPERTY      = "roles"
+      OIDC_SCOPES              = "[\"profile\", \"email\"]"
+    }
+  }
+}
+subscription_id = "<Azure Subscription id>"

@@ -27,11 +27,14 @@ locals {
 data "azurerm_client_config" "current" {}
 
 resource "random_password" "admin_password" {
-  length  = 24
-  lower   = true
-  numeric = true
-  special = false
-  upper   = true
+  length      = 24
+  lower       = true
+  min_lower   = 1
+  min_numeric = 1
+  min_upper   = 1
+  numeric     = true
+  special     = false
+  upper       = true
 }
 
 resource "azurecaf_name" "database" {
@@ -60,6 +63,11 @@ resource "azurerm_key_vault_secret" "password" {
   value        = random_password.admin_password.result
 }
 
+resource "time_sleep" "sleep_60_seconds" {
+  create_duration = "60s"
+  depends_on      = [azurerm_key_vault_secret.password]
+}
+
 resource "azurerm_private_dns_zone" "sql" {
   name                = "privatelink.mysql.database.azure.com"
   resource_group_name = local.resource_group.name
@@ -77,7 +85,11 @@ resource "azurerm_mysql_flexible_server" "database" {
   administrator_password = azurerm_key_vault_secret.password.value
   backup_retention_days  = 30
   delegated_subnet_id    = local.subnet.id
-  depends_on             = [azurerm_private_dns_zone_virtual_network_link.sql]
+  depends_on             = [
+    azurerm_key_vault_secret.password,
+    azurerm_private_dns_zone_virtual_network_link.sql,
+    time_sleep.sleep_60_seconds
+  ]
   location               = local.resource_group.location
   name                   = azurecaf_name.database.result
   private_dns_zone_id    = azurerm_private_dns_zone.sql.id

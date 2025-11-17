@@ -9,6 +9,12 @@ variable "ip_allowlist" {
   type = set(string)
 }
 
+variable "log_analytics_workspace" {
+  type = object({
+    id = string
+  })
+}
+
 variable "naming" {
   type = object({
     clean_input   = bool
