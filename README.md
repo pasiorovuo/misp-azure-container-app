@@ -1,18 +1,4 @@
 
-# TODO
-
-- Application logs need to be configured to be shipped to the Log Analytics Workspace
-- Finish documentation
-  - How to configure Entra ID for authentication
-  - How to prepare the Azure account
-    - DNS Zone
-    - Key vault administrator permissions
-  - How to configure the solution
-  - How to deploy it
-  - How to destroy the environment
-    - Manual removal of custom domain
-  - Scaling / performance
-
 # Setup
 
 1. Create a DNS zone in Azure e.g. `misp.example.com`.
@@ -42,3 +28,12 @@ $ tofu destroy
 N.B. The destroy will likely fail because there is no proper delay between the
 removal of custom domain name of the container app and the removal of the
 certificate. This is under investigation.
+
+# Additional documentation
+
+- Application logs need to be configured to be shipped to the Log Analytics Workspace
+- Finish documentation
+  - How to prepare the Azure account
+    - DNS Zone
+    - Key vault administrator permissions
+  - Scaling / performance
