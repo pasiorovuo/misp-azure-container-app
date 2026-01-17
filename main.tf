@@ -1,14 +1,15 @@
 
 locals {
-  cache              = var.cache
-  cidr               = var.vnet_cidr
-  core               = var.misp.core
-  database           = var.database
-  fqdn               = var.fqdn
-  ip_allowlist       = var.ip_allowlist
-  location           = var.location
-  log_renention_days = var.log_renention_days
-  modules            = var.misp.modules
+  cache                 = var.cache
+  cidr                  = var.vnet_cidr
+  core                  = var.misp.core
+  database              = var.database
+  domain_validation_ips = var.digicert_domain_validation_ips
+  fqdn                  = var.fqdn
+  ip_allowlist          = var.ip_allowlist
+  location              = var.location
+  log_renention_days    = var.log_renention_days
+  modules               = var.misp.modules
   naming = {
     clean_input   = true
     name          = var.naming.name
@@ -82,13 +83,13 @@ module "database" {
 module "storage" {
   source = "./modules/storage"
 
-  config         = local.storage
-  ip_allowlist   = local.ip_allowlist.management
+  config                  = local.storage
+  ip_allowlist            = local.ip_allowlist.management
   log_analytics_workspace = module.logs.workspace
-  naming         = local.naming
-  resource_group = module.resource_group.result
-  subnet         = module.network.subnets.app
-  vnet           = module.network.vnet
+  naming                  = local.naming
+  resource_group          = module.resource_group.result
+  subnet                  = module.network.subnets.app
+  vnet                    = module.network.vnet
 }
 
 module "app" {
@@ -101,9 +102,19 @@ module "app" {
     MYSQL_PORT     = "${module.database.port}"
     MYSQL_USER     = module.database.credentials.username
   }
-  depends_on              = [module.database, module.keyvault]
-  fqdn                    = local.fqdn
-  ip_allowlist            = local.ip_allowlist.access
+  depends_on = [module.database, module.keyvault]
+  fqdn       = local.fqdn
+  ip_allowlist = concat(
+    # Microsoft users Digicert validation services. See
+    # https://knowledge.digicert.com/alerts/ip-address-domain-validation
+    # for list of IPs.
+    tolist(local.ip_allowlist.access),
+    flatten(
+      [for date in keys(var.digicert_domain_validation_ips) :
+        lookup(var.digicert_domain_validation_ips, date, []) if timecmp(date, timestamp()) <= 0
+      ]
+    )
+  )
   keyvault                = module.keyvault.result
   log_analytics_workspace = module.logs.workspace
   misp = {

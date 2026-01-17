@@ -418,6 +418,7 @@ resource "azurerm_dns_txt_record" "misp" {
 
 resource "azurerm_container_app_custom_domain" "misp" {
   container_app_id = azurerm_container_app.misp_core.id
+  depends_on       = [azurerm_dns_a_record.misp, azurerm_dns_txt_record.misp]
   name             = local.fqdn
 
   lifecycle {

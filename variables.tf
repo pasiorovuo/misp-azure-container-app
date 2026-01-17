@@ -13,7 +13,7 @@ variable "cache" {
 
 variable "fqdn" {
   description = "Fully qualified domain name for the MISP instance."
-  type = string
+  type        = string
   validation {
     condition     = length(split(".", var.fqdn)) >= 3 && !endswith(var.fqdn, ".")
     error_message = "FQDN must contain at least three parts i.e. misp.example.com."
@@ -22,9 +22,9 @@ variable "fqdn" {
 
 variable "location" {
   description = "Azure region where the resources will be deployed."
-  default  = "swedencentral"
-  nullable = false
-  type     = string
+  default     = "swedencentral"
+  nullable    = false
+  type        = string
 }
 
 variable "log_renention_days" {
@@ -108,9 +108,9 @@ variable "naming" {
 
 variable "resource_group_name" {
   description = "Name of the resource group where the resources will be deployed. If not provided, a new resource group will be created."
-  default  = null
-  nullable = true
-  type     = string
+  default     = null
+  nullable    = true
+  type        = string
 }
 
 variable "storage" {
@@ -125,14 +125,14 @@ variable "storage" {
 
 variable "subscription_id" {
   description = "Azure subscription ID where the resources will be deployed."
-  nullable = false
-  type     = string
+  nullable    = false
+  type        = string
 }
 
 variable "vnet_cidr" {
   description = "CIDR block for the virtual network."
-  default = "10.20.0.0/16"
-  type    = string
+  default     = "10.20.0.0/16"
+  type        = string
   validation {
     condition     = can(regex("/16$", var.vnet_cidr))
     error_message = "CIDR must end with a /16."
