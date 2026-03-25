@@ -1,4 +1,17 @@
 
+# NOTE!
+
+The initial deployment will possibly fail due to the container app not being
+able to read the database secret. This seems to be an issue with the AzureRM
+provider, as no mount of delay between creating the Key Vault secret and creating
+the container app resolves the issue.
+
+If this happens, remove the Azure Container App and the Container App Environment
+manually form the Azure Portal or CLI and retry. Deployment should succeed.
+
+Likewise, during destruction, Tofu might fail with an error about an ongoing
+provisioning procedure. A retry will resolve the issue.
+
 # Setup
 
 1. Create a DNS zone in Azure e.g. `misp.example.com`.
@@ -7,27 +20,21 @@
 
 # Deploy
 
-Initialize `tofu` command line with:
+Log in on your tenant in Azure CLI and make sure `az` cli commands work.
+
+Initialize Tofu and deploy MISP:
 
 ```bash
-$ az login --tenant <your tenante id> --use-device-code
 $ tofu init
 $ tofu plan
 $ tofu apply
 ```
-
-N.B. The initial deployment will likely fail due to the container app not being
-able to read the database secret. This is under investigation.
 
 # Destroy
 
 ```bash
 $ tofu destroy
 ```
-
-N.B. The destroy will likely fail because there is no proper delay between the
-removal of custom domain name of the container app and the removal of the
-certificate. This is under investigation.
 
 # Additional documentation
 

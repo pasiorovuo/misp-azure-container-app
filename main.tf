@@ -1,15 +1,16 @@
 
 locals {
-  cache                 = var.cache
-  cidr                  = var.vnet_cidr
-  core                  = var.misp.core
-  database              = var.database
-  domain_validation_ips = var.digicert_domain_validation_ips
-  fqdn                  = var.fqdn
-  ip_allowlist          = var.ip_allowlist
-  location              = var.location
-  log_renention_days    = var.log_renention_days
-  modules               = var.misp.modules
+  cache                                  = var.cache
+  cidr                                   = var.vnet_cidr
+  core                                   = var.misp.core
+  database                               = var.database
+  domain_validation_ips                  = var.digicert_domain_validation_ips
+  fqdn                                   = var.fqdn
+  ip_allowlist                           = var.ip_allowlist
+  keyvault_rbac_propagation_wait_seconds = var.keyvault_rbac_propagation_wait_seconds
+  location                               = var.location
+  log_renention_days                     = var.log_renention_days
+  modules                                = var.misp.modules
   naming = {
     clean_input   = true
     name          = var.naming.name
@@ -95,7 +96,8 @@ module "storage" {
 module "app" {
   source = "./modules/app"
 
-  cache = local.cache
+  cache                                  = local.cache
+  keyvault_rbac_propagation_wait_seconds = local.keyvault_rbac_propagation_wait_seconds
   database = {
     MYSQL_DATABASE = module.database.dbname
     MYSQL_HOST     = module.database.hostname

@@ -1,4 +1,5 @@
 fqdn = "misp.example.com"
+keyvault_rbac_propagation_wait_seconds = 600
 ip_allowlist = {
   access     = ["1.2.3.4/32"]
   management = ["1.2.3.4/32"]

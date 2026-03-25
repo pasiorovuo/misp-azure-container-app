@@ -18,12 +18,13 @@ locals {
       ECS_LOG_ENABLED      = "true"
     }
   )
-  fqdn                    = var.fqdn
-  ip_allowlist            = var.ip_allowlist
-  keyvault                = var.keyvault
-  log_analytics_workspace = var.log_analytics_workspace
-  modules_cpu             = var.misp.modules != null ? var.misp.modules.cpu : 0.5
-  modules_mem             = var.misp.modules != null ? var.misp.modules.memory : 1
+  fqdn                                   = var.fqdn
+  ip_allowlist                           = var.ip_allowlist
+  keyvault                               = var.keyvault
+  keyvault_rbac_propagation_wait_seconds = var.keyvault_rbac_propagation_wait_seconds
+  log_analytics_workspace                = var.log_analytics_workspace
+  modules_cpu                            = var.misp.modules != null ? var.misp.modules.cpu : 0.5
+  modules_mem                            = var.misp.modules != null ? var.misp.modules.memory : 1
   modules_env = merge(
     {
       # Defaults that can be overridden
@@ -98,7 +99,7 @@ resource "azurerm_role_assignment" "keyvault_reader" {
 }
 
 resource "time_sleep" "keyvault_rights" {
-  create_duration = "60s"
+  create_duration = format("%ss", local.keyvault_rbac_propagation_wait_seconds)
 
   depends_on = [azurerm_role_assignment.keyvault_reader]
 }
@@ -265,7 +266,7 @@ resource "azurerm_container_app" "misp_core" {
       }
 
       startup_probe {
-        failure_count_threshold = 8
+        failure_count_threshold = 30 # Startup can take a long time, especially on initial deployment
         initial_delay           = 60
         interval_seconds        = 30
         path                    = "/users/heartbeat"
@@ -462,15 +463,15 @@ resource "azapi_update_resource" "bind_managed_certificate" {
 }
 
 resource "null_resource" "delete_certificate_binding" {
-  depends_on  = [azapi_resource.managed_certificate, azurerm_container_app_custom_domain.misp]
+  depends_on = [azapi_resource.managed_certificate, azurerm_container_app_custom_domain.misp]
   triggers = {
     container_app_id = azurerm_container_app.misp_core.id
     custom_domain_id = azurerm_container_app_custom_domain.misp.id
   }
 
   provisioner "local-exec" {
-    command    = "az rest --method patch --url https://management.azure.com${self.triggers.container_app_id}?api-version=2023-05-01 --body '${jsonencode({properties={configuration={ingress={customDomains=[]}}}})}'"
+    command = "az rest --method patch --url https://management.azure.com${self.triggers.container_app_id}?api-version=2023-05-01 --body '${jsonencode({ properties = { configuration = { ingress = { customDomains = [] } } } })}'"
     # on_failure = continue
-    when       = destroy
+    when = destroy
   }
 }

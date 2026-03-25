@@ -27,6 +27,16 @@ variable "location" {
   type        = string
 }
 
+variable "keyvault_rbac_propagation_wait_seconds" {
+  description = "How long to wait after assigning Key Vault RBAC roles before creating Container Apps that read Key Vault secrets."
+  default     = 600
+  type        = number
+  validation {
+    condition     = var.keyvault_rbac_propagation_wait_seconds >= 60
+    error_message = "Value must be at least 60 seconds."
+  }
+}
+
 variable "log_renention_days" {
   description = "Number of days to store the logs in the log analytics workspace"
   default     = 30

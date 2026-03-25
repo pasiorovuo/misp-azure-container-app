@@ -34,6 +34,10 @@ variable "keyvault" {
   })
 }
 
+variable "keyvault_rbac_propagation_wait_seconds" {
+  type = number
+}
+
 variable "log_analytics_workspace" {
   type = object({
     id = string
